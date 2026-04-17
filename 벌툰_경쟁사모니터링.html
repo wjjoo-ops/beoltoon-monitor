@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>벌툰 — 경쟁사 모니터링</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #f5f3ef;
+  --surface: #ffffff;
+  --surface2: #f0ede8;
+  --border: #e2ddd7;
+  --accent: #c94f23;
+  --accent-light: #fdf0eb;
+  --accent-mid: #f0997b;
+  --text: #1a1714;
+  --muted: #8c8480;
+  --green: #2d7a4f;
+  --green-bg: #edf7f2;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(circle, #c94f2308 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none; z-index: 0;
+}
+.wrap { position: relative; z-index: 1; }
+
+/* 헤더 */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.logo { font-size: 17px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
+.logo-mark { width: 30px; height: 30px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 700; }
+.scan-time { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+/* API 키 배너 */
+.api-banner {
+  background: var(--accent-light);
+  border-bottom: 1px solid #f0c4b0;
+  padding: 10px 2rem;
+  display: flex; align-items: center; gap: 12px; font-size: 13px;
+}
+.api-banner.hidden { display: none; }
+.api-label { color: var(--accent); font-weight: 500; white-space: nowrap; }
+.api-banner input {
+  flex: 1; max-width: 340px;
+  padding: 6px 12px; border: 1px solid #f0c4b0; border-radius: 8px;
+  font-size: 13px; font-family: 'DM Mono', monospace;
+  background: #fff; color: var(--text); outline: none;
+}
+.api-banner input:focus { border-color: var(--accent); }
+
+/* 버튼 공통 */
+.btn {
+  padding: 6px 16px; border-radius: 8px; border: none;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif; transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #a83e1a; }
+.btn-primary:disabled { background: var(--muted); cursor: not-allowed; }
+.btn-ghost { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+
+/* 컨테이너 */
+.container { max-width: 1200px; margin: 0 auto; padding: 1.75rem 2rem; }
+
+/* 신규 알림 배너 */
+.new-banner {
+  background: var(--accent-light);
+  border: 1px solid #f0c4b0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 1.25rem;
+  display: flex; align-items: center; gap: 12px;
+  font-size: 13px;
+  animation: fadeUp 0.4s ease;
+}
+.new-banner.hidden { display: none; }
+.new-banner-text { color: var(--accent); font-weight: 500; flex: 1; }
+.new-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s infinite; flex-shrink: 0; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* 통계 카드 */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 12px; margin-bottom: 1.75rem;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1.25rem;
+  transition: transform 0.15s;
+  animation: fadeUp 0.4s ease both;
+}
+.stat-card:hover { transform: translateY(-2px); }
+.stat-card:nth-child(1){ animation-delay:.05s }
+.stat-card:nth-child(2){ animation-delay:.10s }
+.stat-card:nth-child(3){ animation-delay:.15s }
+.stat-card:nth-child(4){ animation-delay:.20s }
+.stat-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.stat-value { font-size: 30px; font-weight: 700; font-family: 'DM Mono', monospace; letter-spacing: -1px; }
+.stat-value.red { color: var(--accent); }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+/* 메인 그리드 */
+.main-grid { display: grid; grid-template-columns: 1fr 300px; gap: 16px; }
+
+/* 패널 */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.panel-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.panel-title { font-size: 13px; font-weight: 500; }
+.result-count {
+  font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace;
+  background: var(--surface2); padding: 2px 10px; border-radius: 10px;
+}
+
+/* 검색 바 */
+.search-bar {
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 8px; flex-wrap: wrap; background: var(--surface2);
+  align-items: center;
+}
+.keyword-chip {
+  font-size: 11px; padding: 4px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); cursor: pointer; transition: all 0.12s;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.keyword-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-search {
+  padding: 5px 18px; background: var(--text); color: #fff;
+  border: none; border-radius: 20px; font-size: 12px; font-weight: 500;
+  cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+  margin-left: auto; transition: background 0.15s;
+}
+.btn-search:hover { background: var(--accent); }
+.btn-search:disabled { background: var(--muted); cursor: not-allowed; }
+
+/* 테이블 */
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 10px 16px;
+  font-size: 10px; font-weight: 500; color: var(--muted);
+  background: var(--surface2); border-bottom: 1px solid var(--border);
+  letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;
+}
+td { padding: 12px 16px; border-bottom: 1px solid #f0ede8; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface2); }
+tr.is-new td { background: #fff8f6; }
+tr.is-new td:first-child { border-left: 3px solid var(--accent); }
+
+.place-name { font-weight: 500; }
+.place-addr { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.new-badge {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  background: var(--accent); color: #fff;
+  padding: 2px 7px; border-radius: 4px; margin-left: 6px;
+  vertical-align: middle;
+}
+.kakao-link {
+  font-size: 11px; color: var(--accent); text-decoration: none;
+  border: 1px solid #f0c4b0; padding: 2px 8px; border-radius: 4px;
+}
+.kakao-link:hover { background: var(--accent-light); }
+
+/* 상태 박스 */
+.state-box { padding: 3rem 2rem; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.state-box .big { font-size: 28px; margin-bottom: 8px; }
+
+/* 스피너 */
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 사이드바 */
+.sidebar { display: flex; flex-direction: column; gap: 14px; }
+.side-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.side-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 500; background: var(--surface2); }
+
+/* 지역 바 */
+.region-list { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.region-row { display: flex; align-items: center; gap: 10px; }
+.rname { font-size: 11px; color: var(--muted); min-width: 38px; }
+.rbar-bg { flex: 1; height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.rbar-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 0; transition: width 0.8s cubic-bezier(.4,0,.2,1); }
+.rcnt { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text); min-width: 24px; text-align: right; }
+
+/* 검색 기록 */
+.history-item {
+  padding: 10px 16px; display: flex; justify-content: space-between;
+  align-items: center; font-size: 12px;
+  border-bottom: 1px solid #f0ede8; cursor: pointer; transition: background 0.1s;
+}
+.history-item:last-child { border-bottom: none; }
+.history-item:hover { background: var(--surface2); }
+.history-kw { color: var(--text); font-weight: 500; }
+.history-meta { text-align: right; }
+.history-cnt { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); display: block; }
+.history-new { font-size: 10px; color: var(--green); }
+.history-time { font-size: 10px; color: var(--muted); display: block; }
+
+/* 도움말 */
+.help-box { padding: 14px 16px; font-size: 12px; color: var(--muted); line-height: 1.9; }
+.help-box strong { color: var(--text); font-weight: 500; }
+
+/* 애니메이션 */
+.fade-in { animation: fadeUp 0.4s ease both; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+/* 반응형 */
+@media(max-width: 960px) {
+  .stats-grid { grid-template-columns: repeat(2,1fr); }
+  .main-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-mark">B</div>
+    벌툰 경쟁사 모니터링
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="scan-time" id="scan-time">마지막 검색: —</span>
+    <button class="btn btn-ghost" onclick="toggleApiInput()">API 키 설정</button>
+  </div>
+</header>
+
+<!-- API 키 배너 -->
+<div class="api-banner" id="api-banner">
+  <span class="api-label">카카오 REST API 키</span>
+  <input type="text" id="api-input" placeholder="카카오 REST API 키 입력" />
+  <button class="btn btn-primary" onclick="saveKey()">저장</button>
+  <span style="font-size:11px;color:var(--muted)">이 브라우저에만 저장 · 외부 전송 없음</span>
+</div>
+
+<div class="container">
+
+  <!-- 신규 탐지 알림 -->
+  <div class="new-banner hidden" id="new-banner">
+    <div class="new-dot"></div>
+    <div class="new-banner-text" id="new-banner-text"></div>
+    <button class="btn btn-ghost" style="font-size:11px;padding:4px 12px" onclick="document.getElementById('new-banner').classList.add('hidden')">닫기</button>
+  </div>
+
+  <!-- 통계 카드 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">검색 결과</div>
+      <div class="stat-value" id="s-total">—</div>
+      <div class="stat-sub">현재 검색 기준</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">신규 탐지</div>
+      <div class="stat-value red" id="s-new">—</div>
+      <div class="stat-sub">이전 검색 대비</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">수도권</div>
+      <div class="stat-value" id="s-seoul">—</div>
+      <div class="stat-sub">서울 · 경기</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">검색 키워드</div>
+      <div class="stat-value" id="s-kw" style="font-size:15px;padding-top:6px">—</div>
+      <div class="stat-sub">현재 선택됨</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- 테이블 패널 -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">경쟁사 목록</span>
+          <span class="result-count" id="result-count">0건</span>
+        </div>
+        <div class="search-bar">
+          <button class="keyword-chip active" data-kw="만화카페" onclick="selectKw(this)">만화카페</button>
+          <button class="keyword-chip" data-kw="웹툰카페" onclick="selectKw(this)">웹툰카페</button>
+          <button class="keyword-chip" data-kw="북카페 만화" onclick="selectKw(this)">북카페 만화</button>
+          <button class="keyword-chip" data-kw="만화방" onclick="selectKw(this)">만화방</button>
+          <button class="keyword-chip" data-kw="코믹스카페" onclick="selectKw(this)">코믹스카페</button>
+          <button class="btn-search" id="btn-search" onclick="doSearch()">검색 실행</button>
+        </div>
+        <div id="table-area">
+          <div class="state-box">
+            <div class="big">🔍</div>
+            API 키를 설정하고 검색을 실행하세요.<br>
+            첫 검색 결과를 저장해두고, 다음 검색 때<br>새로 생긴 업체를 자동으로 표시해드려요.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사이드바 -->
+    <div class="sidebar">
+      <div class="side-panel">
+        <div class="side-header">지역별 분포</div>
+        <div class="region-list" id="region-list">
+          <div style="font-size:12px;color:var(--muted);text-align:center;padding:.5rem 0">검색 후 표시됩니다</div>
+        </div>
+      </div>
+      <div class="side-panel">
+        <div class="side-header">검색 기록</div>
+        <div id="history-list">
+          <div style="font-size:12px;color:var(--muted);text-align:center;padding:1rem">기록 없음</div>
+        </div>
+      </div>
+      <div class="side-panel">
+        <div class="side-header">사용 안내</div>
+        <div class="help-box">
+          <strong>신규 탐지 방식</strong><br>
+          첫 검색 결과를 브라우저에 저장해두고, 다음 검색 때 새로 생긴 업체를 빨간색으로 표시해요.<br><br>
+          <strong>주기적으로 검색</strong>하면 새 경쟁사가 생길 때마다 바로 확인할 수 있어요.<br><br>
+          <span style="color:var(--accent)">같은 브라우저에서만 비교가 됩니다.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+let apiKey = localStorage.getItem('beoltoon_api_key') || '';
+let currentKw = '만화카페';
+let isSearching = false;
+let history = JSON.parse(localStorage.getItem('beoltoon_history') || '[]');
+
+// 이전 검색 결과 (신규 탐지용) - 키워드별로 저장
+function getPrevData(kw) {
+  return JSON.parse(localStorage.getItem('beoltoon_prev_' + kw) || '[]');
+}
+function savePrevData(kw, data) {
+  localStorage.setItem('beoltoon_prev_' + kw, JSON.stringify(data));
+}
+
+window.onload = () => {
+  if (apiKey) {
+    document.getElementById('api-input').value = apiKey;
+    document.getElementById('api-banner').classList.add('hidden');
+  }
+  document.getElementById('s-kw').textContent = currentKw;
+  renderHistory();
+};
+
+function toggleApiInput() {
+  document.getElementById('api-banner').classList.toggle('hidden');
+}
+
+function saveKey() {
+  const v = document.getElementById('api-input').value.trim();
+  if (!v) { alert('API 키를 입력해주세요.'); return; }
+  apiKey = v;
+  localStorage.setItem('beoltoon_api_key', apiKey);
+  document.getElementById('api-banner').classList.add('hidden');
+  doSearch();
+}
+
+function selectKw(btn) {
+  document.querySelectorAll('.keyword-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentKw = btn.dataset.kw;
+  document.getElementById('s-kw').textContent = currentKw;
+}
+
+async function doSearch() {
+  if (!apiKey) { toggleApiInput(); return; }
+  if (isSearching) return;
+  isSearching = true;
+
+  const btn = document.getElementById('btn-search');
+  btn.disabled = true;
+  btn.textContent = '검색 중...';
+  document.getElementById('table-area').innerHTML =
+    '<div class="state-box"><span class="spinner"></span>카카오맵에서 검색 중...</div>';
+  document.getElementById('new-banner').classList.add('hidden');
+
+  try {
+    const results = await fetchAll(currentKw);
+
+    // 신규 탐지 — 이전 결과와 비교
+    const prev = getPrevData(currentKw);
+    const prevIds = new Set(prev.map(p => p.id));
+    const newItems = prev.length > 0
+      ? results.filter(r => !prevIds.has(r.id))
+      : [];
+
+    // 현재 결과를 저장 (다음 비교용)
+    savePrevData(currentKw, results);
+
+    renderTable(results, newItems);
+    updateStats(results, newItems);
+    updateRegions(results);
+    addHistory(currentKw, results.length, newItems.length);
+
+    // 신규 배너
+    if (newItems.length > 0) {
+      document.getElementById('new-banner-text').textContent =
+        `신규 경쟁사 ${newItems.length}곳이 새로 발견됐습니다! → ${newItems.map(n=>n.place_name).join(', ')}`;
+      document.getElementById('new-banner').classList.remove('hidden');
+    }
+
+    const now = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('scan-time').textContent = `마지막 검색: ${now}`;
+
+  } catch(e) {
+    document.getElementById('table-area').innerHTML =
+      `<div class="state-box"><div class="big">⚠️</div>${e.message}<br><br>API 키를 다시 확인해보세요.</div>`;
+  } finally {
+    isSearching = false;
+    btn.disabled = false;
+    btn.textContent = '검색 실행';
+  }
+}
+
+async function fetchAll(kw) {
+  let all = [];
+  for (let page = 1; page <= 3; page++) {
+    const url = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(kw)}&page=${page}&size=15&sort=accuracy`;
+    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${apiKey}` } });
+    if (res.status === 401) throw new Error('API 키가 올바르지 않습니다');
+    if (!res.ok) throw new Error(`API 오류 (${res.status})`);
+    const data = await res.json();
+    all = all.concat(data.documents || []);
+    if (data.meta?.is_end) break;
+  }
+  return all.filter(d => !d.place_name.includes('벌툰'));
+}
+
+function renderTable(results, newItems) {
+  const newIds = new Set(newItems.map(n => n.id));
+  document.getElementById('result-count').textContent = `${results.length}건`;
+
+  if (!results.length) {
+    document.getElementById('table-area').innerHTML =
+      '<div class="state-box"><div class="big">😶</div>결과가 없습니다.</div>';
+    return;
+  }
+
+  const rows = results.map((r, i) => {
+    const isNew = newIds.has(r.id);
+    return `<tr class="${isNew ? 'is-new' : ''}" style="animation:fadeUp .3s ease ${i*.02}s both">
+      <td>
+        <span class="place-name">${r.place_name}</span>
+        ${isNew ? '<span class="new-badge">NEW</span>' : ''}
+        <div class="place-addr">${r.road_address_name || r.address_name}</div>
+      </td>
+      <td>${(r.address_name.split(' ').slice(0,2).join(' ')) || '—'}</td>
+      <td style="font-size:12px">${r.phone || '—'}</td>
+      <td>${r.place_url ? `<a class="kakao-link" href="${r.place_url}" target="_blank">지도 보기</a>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('table-area').innerHTML = `
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>업체명 / 주소</th><th>지역</th><th>전화번호</th><th>링크</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function updateStats(results, newItems) {
+  document.getElementById('s-total').textContent = results.length;
+  document.getElementById('s-new').textContent = newItems.length > 0 ? `+${newItems.length}` : '0';
+  const seoul = results.filter(r => r.address_name.startsWith('서울') || r.address_name.startsWith('경기')).length;
+  document.getElementById('s-seoul').textContent = seoul;
+  document.getElementById('s-kw').textContent = currentKw;
+}
+
+function updateRegions(results) {
+  const map = {};
+  results.forEach(r => {
+    const region = r.address_name.split(' ')[0] || '기타';
+    map[region] = (map[region] || 0) + 1;
+  });
+  const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]).slice(0,7);
+  if (!sorted.length) return;
+  const max = sorted[0][1];
+  document.getElementById('region-list').innerHTML = sorted.map(([name, cnt]) => `
+    <div class="region-row">
+      <span class="rname">${name}</span>
+      <div class="rbar-bg"><div class="rbar-fill" data-pct="${Math.round(cnt/max*100)}"></div></div>
+      <span class="rcnt">${cnt}</span>
+    </div>`).join('');
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.rbar-fill').forEach(el => { el.style.width = el.dataset.pct + '%'; });
+  });
+}
+
+function addHistory(kw, cnt, newCnt) {
+  const now = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
+  history.unshift({ kw, cnt, newCnt, time: now });
+  if (history.length > 10) history.pop();
+  localStorage.setItem('beoltoon_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!history.length) return;
+  document.getElementById('history-list').innerHTML = history.map(h => `
+    <div class="history-item" onclick="replaySearch('${h.kw}')">
+      <div>
+        <div class="history-kw">${h.kw}</div>
+        <span class="history-time">${h.time}</span>
+      </div>
+      <div class="history-meta">
+        <span class="history-cnt">${h.cnt}건</span>
+        ${h.newCnt > 0 ? `<span class="history-new">+${h.newCnt} 신규</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function replaySearch(kw) {
+  document.querySelectorAll('.keyword-chip').forEach(b => b.classList.toggle('active', b.dataset.kw === kw));
+  currentKw = kw;
+  doSearch();
+}
+</script>
+</body>
+</html>
